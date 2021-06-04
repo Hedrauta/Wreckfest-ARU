@@ -48,7 +48,7 @@ function start_wf () {
     }
     
 function stop_wf () {
-    $wf_pid = $(# -Name Wreckfest -ErrorAction Ignore).Id
+    $wf_pid = $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Id
     if ( $($wf_pid.Count) -gt 1 ) {
         Write-Warning "Killing $($wf_pid.Count) server"
         $wf_pid | ForEach-Object {
