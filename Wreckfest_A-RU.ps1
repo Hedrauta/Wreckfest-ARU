@@ -11,6 +11,13 @@ $script:restart_time_hour = 8   # time of Restart ( have to rework that one.... 
 ########################################
 ## DON'T TRY TO CHANGE ANYTHING BELOW ##
 ########################################
+function check_ddst ($1) {
+        $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
+        $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
+        if ( "$ddst" -not "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
+            Remove-Item -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
+            }
+        }
 function start_wf () {
     if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -ge 1) {
         Write-Warning "There are still some servers active. Trying to stop them"
@@ -23,7 +30,7 @@ function start_wf () {
             New-Item -Path $WF_DIR\config\$_\ -Name "save" -ItemType "directory"
             }
         else { 
-            Remove-Item $WF_DIR\config\$_\save\dedicated.ddst -ErrorAction Ignore
+            check_ddst $_
             }
         if ( $(Get-ChildItem -Path $WF_DIR\config\$($_)\ -Name server_config.cfg).Count -eq 0) {
             Write-Warning "No server_config.cfg in $WF_DIR\config\$($_)\ found. Skipping Start."
@@ -41,7 +48,7 @@ function start_wf () {
     }
     
 function stop_wf () {
-    $wf_pid = $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Id
+    $wf_pid = $(# -Name Wreckfest -ErrorAction Ignore).Id
     if ( $($wf_pid.Count) -gt 1 ) {
         Write-Warning "Killing $($wf_pid.Count) server"
         $wf_pid | ForEach-Object {
