@@ -14,7 +14,7 @@ $script:restart_time_hour = 8   # time of Restart ( have to rework that one.... 
 function check_ddst ($1) {
         $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
         $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
-        if ( "$ddst" -not "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
+        if ( "$ddst" -ne "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
             Remove-Item -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
             }
         }
