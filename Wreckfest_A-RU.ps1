@@ -1,4 +1,4 @@
-﻿$script:WF_DIR = "C:\Spiele_Server\Wreckfest" # Path to Wreckfest-Dedicated-Server-INstallation
+$script:WF_DIR = "C:\Spiele_Server\Wreckfest" # Path to Wreckfest-Dedicated-Server-INstallation
 $script:STEAMCMD = "D:\steamcmd_gui\steamcmd" # Path to SteamCMD
 $script:restart_time_hour = 8   # time of Restart ( have to rework that one.... got an issue on that one... )
 ########################################
@@ -11,15 +11,8 @@ $script:restart_time_hour = 8   # time of Restart ( have to rework that one.... 
 ########################################
 ## DON'T TRY TO CHANGE ANYTHING BELOW ##
 ########################################
-function check_ddst ($1) {
-        $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
-        $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
-        if ( "$ddst" -not "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
-            Remove-Item -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
-            }
-        }
 function start_wf () {
-    if ( $(Get-Process -Name Wreckfest -ErrorAction Ignore).Count -ge 1) {
+    if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -ge 1) {
         Write-Warning "There are still some servers active. Trying to stop them"
         stop_wf
         }
@@ -30,7 +23,7 @@ function start_wf () {
             New-Item -Path $WF_DIR\config\$_\ -Name "save" -ItemType "directory"
             }
         else { 
-            check_ddst $_
+            Remove-Item $WF_DIR\config\$_\save\dedicated.ddst -ErrorAction Ignore
             }
         if ( $(Get-ChildItem -Path $WF_DIR\config\$($_)\ -Name server_config.cfg).Count -eq 0) {
             Write-Warning "No server_config.cfg in $WF_DIR\config\$($_)\ found. Skipping Start."
@@ -40,15 +33,15 @@ function start_wf () {
             sleep -Milliseconds 200
             $wf_conf = "$WF_DIR\config\$($_)\server_config.cfg"
             $Wf_save = "$WF_DIR\config\$($_)\save\"
-            Start-Process -FilePath $WF_DIR\server\Wreckfest.exe -WorkingDirectory $WF_DIR -ArgumentList "-s server_config=$wf_conf","--save-dir=$wf_save"
+            Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -ArgumentList "-s server_config=$wf_conf","--save-dir=$wf_save"
             }
         }
-    Write-Warning "$($(Get-Process -Name Wreckfest).Count) server started. Check for errors on your own."
+    Write-Warning "$($(Get-Process -Name Wreckfest_x64).Count) server started. Check for errors on your own."
     $script:last_start = (Get-Date).Date
     }
     
 function stop_wf () {
-    $wf_pid = $(Get-Process -Name Wreckfest -ErrorAction Ignore).Id
+    $wf_pid = $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Id
     if ( $($wf_pid.Count) -gt 1 ) {
         Write-Warning "Killing $($wf_pid.Count) server"
         $wf_pid | ForEach-Object {
@@ -56,7 +49,7 @@ function stop_wf () {
             }
         }
     sleep -Milliseconds 300
-    if ( $(Get-Process -Name Wreckfest -ErrorAction Ignore).Count -ge 1) {
+    if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -ge 1) {
         Write-Warning "There are still some servers running. Please kill them manually"
         Pause
         Break
@@ -65,7 +58,7 @@ function stop_wf () {
 function update_wf () {
     stop_wf
     sleep -Seconds 3
-    if ( $(Get-Process -Name Wreckfest -ErrorAction Ignore).Count -eq 0) {
+    if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -eq 0) {
         cd $STEAMCMD
         .\steamcmd.exe +login anonymous +force_install_dir $WF_DIR +app_update 361580 validate +quit
         }
