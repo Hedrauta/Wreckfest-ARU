@@ -147,7 +147,7 @@ function GetInstalledAppID {
 function check_version () {
     GetInstalledBuildID
     GetLatestBuildID
-    if ($installed_builid -eq $latest_buildid) {
+    if ($installed_buildid -eq $latest_buildid) {
         Write-Host "$(Get-Date) >> Server is Up2Date"
         }
     else {
