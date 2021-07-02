@@ -1,6 +1,7 @@
 $script:WF_DIR = "C:\Spiele_Server\Wreckfest" # Path to Wreckfest-Dedicated-Server-INstallation
 $script:STEAMCMD = "D:\steamcmd_gui\steamcmd" # Path to SteamCMD
 $script:restart_time_hour = 8   # time of Restart ( have to rework that one.... got an issue on that one... )
+$script:debug = $false # does write log-files into a subfolder, only for debugging-purposes
 ########################################
 ####### JUST EDIT THE LINES ABOVE ######
 ########################################
@@ -11,6 +12,7 @@ $script:restart_time_hour = 8   # time of Restart ( have to rework that one.... 
 ########################################
 ## DON'T TRY TO CHANGE ANYTHING BELOW ##
 ########################################
+
 function check_ddst ($1) {
         $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
         $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
@@ -128,29 +130,34 @@ Function ConvertFrom-VDF {
     
 }
 
-function UpToDateCheck ($a){
+function GetLatestBuildID {
     $params = @{
-        Uri         = "https://api.steampowered.com/ISteamApps/UpToDateCheck/v1/"
-        Body     = @{ 'appid' = "361580";"version" = "$a"}
+        Uri         = "https://api.steamcmd.net/v1/info/361580"
         Method      = 'GET'
         }
-    $script:check = $(Invoke-WebRequest @params).Content | ConvertFrom-Json
+    $script:latest_buildid = $($($(Invoke-WebRequest @params).Content | ConvertFrom-Json).data.361580).depots.branches.public.buildid
 }
+function GetInstalledBuildID {
+    $script:installed_buildid = $(ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)).AppState.buildid
+    }
+function GetInstalledAppID {
+    $script:installed_appid = $(ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)).AppState.appid
+    }
 
 function check_version () {
-    $version = ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)
-    UpToDateCheck $version.AppState.buildid
-    if ($check.response.up_to_date -eq $true) {
+    GetInstalledBuildID
+    GetLatestBuildID
+    if ($installed_appid -ge $latest_buildid) {
         Write-Host "$(Get-Date) >> Server is Up2Date"
         }
     else {
         Write-Warning "$(Get-Date) >> Server is outdated. Starting Update!"
-        Sleep -Seconds 10
+        Sleep -Seconds 5
         update_wf
-        Write-Host "Check Update (because we don't trust steam)"
-        $version = ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)
-        UpToDateCheck $version.AppState.buildid
-        if ($check.response.up_to_date -eq $true) {
+        Write-Host "Check Update (because we don't trust anyone)"
+        GetInstalledBuildID
+        GetLatestBuildID
+        if ($installed_buildid -ge $latest_buildid) {
             Write-Host "Update successfull. Starting server!!"
             start_wf
             }
@@ -168,13 +175,20 @@ function restart_wf () {
     start_wf
     }
 
+$script:scrstart = (Get-Date -UFormat %s -Millisecond 0)
+if ($debug -eq $true) {
+    Start-Transcript -Path ".\WF_ARU\$($script:scrstart)_log.txt" -Append
+    }
+
 "                     _                     _      "
 " \    / ._ _   _ | _|_ _   _ _|_    /\ __ |_) | | "
 "  \/\/  | (/_ (_ |< | (/_ _>  |_   /--\   | \ |_| "
 "                                                  "
    "Wreckfest Auto-Run&Update"
    "Because, you don't care anymore"
+
    "";"";""
+   Write-Host "Thanks to github.com/ChiefIntegrator, for his wonderfull ConvertFrom-VDF and to the https://steamcmd.net API to get the auto-update-part running again"
 Sleep -Seconds 3
 if ( $(Get-ChildItem -Directory -Path $WF_DIR\config -ErrorAction Ignore).Count -eq 0) {
     Write-Warning "No Config-Directories found." 
@@ -183,18 +197,20 @@ if ( $(Get-ChildItem -Directory -Path $WF_DIR\config -ErrorAction Ignore).Count 
     Pause
     Break
     }
-$version = ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)
-if ( $version.AppState.appid -ne 361580 ) {
+GetInstalledAppID
+if ( $installed_appid -ne 361580 ) {
     Write-Warning "Server is not installed as dedicated Server. Please reinstall with AppID 361580"
     Pause
     Break
     }
-check_version
+GetInstalledBuildID
+GetLatestBuildID
 Write-Host "Startup-checks complete. Proceeding to the lazy part"
-if ( $check.response.up_to_date -eq $false) {
+if ($installed_buildid -lt $latest_buildid) {
     check_version
     }
 else {
+    $script:last_check = Get-Date
     start_wf
     }
 while (1) {
@@ -214,5 +230,4 @@ while (1) {
         }
     Write-Host -NoNewline "."
     sleep -Seconds 10
-
     }
