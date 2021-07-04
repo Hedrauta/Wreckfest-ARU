@@ -14,12 +14,13 @@ $script:debug = $false # does write log-files into a subfolder, only for debuggi
 ########################################
 
 function check_ddst ($1) {
-        $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
-        $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
-        if ( "$ddst" -ne "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
-            Remove-Item -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
-            }
+    $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
+    $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
+    if ( "$ddst" -ne "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
+        Remove-Item -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
         }
+    }
+
 function start_wf () {
     if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -ge 1) {
         Write-Warning "There are still some servers active. Trying to stop them"
@@ -48,7 +49,7 @@ function start_wf () {
     Write-Warning "$($(Get-Process -Name Wreckfest_x64).Count) server started. Check for errors on your own."
     $script:last_start = (Get-Date).Date
     }
-    
+
 function stop_wf () {
     $wf_pid = $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Id
     if ( $($wf_pid.Count) -gt 1 ) {
@@ -64,6 +65,7 @@ function stop_wf () {
         Break
         }
     }
+
 function update_wf () {
     stop_wf
     sleep -Seconds 3
@@ -77,6 +79,7 @@ function update_wf () {
         Break
         }
     }
+
 Function ConvertFrom-VDF {
     # Source: https://github.com/ChiefIntegrator/Steam-GetOnTop/blob/master/Modules/SteamTools/SteamTools.psm1
     param
@@ -135,11 +138,30 @@ function GetLatestBuildID {
         Uri         = "https://api.steamcmd.net/v1/info/361580"
         Method      = 'GET'
         }
-    $script:latest_buildid = $($($(Invoke-WebRequest @params).Content | ConvertFrom-Json).data.361580).depots.branches.public.buildid
-}
+
+    $test = Test-Connection -ComputerName api.steamcmd.net -Count 1 -ErrorAction Ignore
+
+    if ($test.ResponseTime -ge 1 -or $test -ne $null ) {
+        $req1 = Invoke-WebRequest @params -UseBasicParsing
+        $req = $req1.Content | ConvertFrom-Json
+        if ($req1.StatusCode -eq 200) {
+            $script:latest_buildid = $($req.data.361580).depots.branches.public.buildid
+            }               
+        else {
+            Write-Warning "Server didnt responded with Code 200, skipping update-check"
+            $script:latest_buildid = $null
+            }
+        }
+    else {
+        Write-Warning "Server api.steamcmd.net is not available, skipping update-check"
+        $script:latest_buildid = $null
+        }
+    }
+
 function GetInstalledBuildID {
     $script:installed_buildid = $(ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)).AppState.buildid
     }
+
 function GetInstalledAppID {
     $script:installed_appid = $(ConvertFrom-VDF (Get-Content $WF_DIR\steamapps\appmanifest_361580.acf)).AppState.appid
     }
@@ -147,7 +169,7 @@ function GetInstalledAppID {
 function check_version () {
     GetInstalledBuildID
     GetLatestBuildID
-    if ($installed_buildid -eq $latest_buildid) {
+    if ($latest_buildid -ne $false -and $installed_buildid -eq $latest_buildid) {
         Write-Host "$(Get-Date) >> Server is Up2Date"
         }
     else {
@@ -157,29 +179,32 @@ function check_version () {
         Write-Host "Check Update (because we don't trust anyone)"
         GetInstalledBuildID
         GetLatestBuildID
-        if ($installed_buildid -eq $latest_buildid) {
+        if ($latest_buildid -ne $false -and $installed_buildid -eq $latest_buildid) {
             Write-Host "Update successfull. Starting server!!"
             start_wf
             }
         else {
-            Write-Warning "Something went wrong. Please update manually and restart the script"
-            Sleep -Seconds 15
+            Write-Warning "Something went wrong during updating. Please update manually and restart the script"
+            Pause
             Break
             }
         }
     $script:last_check = Get-Date
     }
+
 function restart_wf () {
     stop_wf
     sleep -Milliseconds 200
     start_wf
     }
 
+# Debug-Part, writes Powershell-Transcript-Files into a subfolder ( \WF_ARU\* ) when enabled
 $script:scrstart = (Get-Date -UFormat %s -Millisecond 0)
 if ($debug -eq $true) {
-    Start-Transcript -Path ".\WF_ARU\$($script:scrstart)_log.txt" -Append
+    Start-Transcript -Path ".\WF_ARU\$($script:scrstart)_log.txt"
     }
 
+# Script-Start: 
 "                     _                     _      "
 " \    / ._ _   _ | _|_ _   _ _|_    /\ __ |_) | | "
 "  \/\/  | (/_ (_ |< | (/_ _>  |_   /--\   | \ |_| "
@@ -193,7 +218,7 @@ Sleep -Seconds 3
 if ( $(Get-ChildItem -Directory -Path $WF_DIR\config -ErrorAction Ignore).Count -eq 0) {
     Write-Warning "No Config-Directories found." 
     Write-Warning "Please create a config-folder and for every server a subfolder, which contains the server_config.cfg"
-    Write-Warning "example: $WF_DIR\config\server1\server_config.cfg"
+    Write-Warning "example: $WF_DIR > \config\server1\server_config.cfg < "
     Pause
     Break
     }
@@ -206,7 +231,7 @@ if ( $installed_appid -ne 361580 ) {
 GetInstalledBuildID
 GetLatestBuildID
 Write-Host "Startup-checks complete. Proceeding to the lazy part"
-if ($installed_buildid -eq $latest_buildid) {
+if ($latest_buildid -ne $false -and $installed_buildid -eq $latest_buildid) {
     $script:last_check = Get-Date
     start_wf
     }
