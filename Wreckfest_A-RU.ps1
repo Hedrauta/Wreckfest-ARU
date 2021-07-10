@@ -169,7 +169,7 @@ function GetInstalledAppID {
 function check_version () {
     GetInstalledBuildID
     GetLatestBuildID
-    if ($latest_buildid -ne $false -and $installed_buildid -eq $latest_buildid) {
+    if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
         Write-Host "$(Get-Date) >> Server is Up2Date"
         }
     else {
@@ -179,7 +179,7 @@ function check_version () {
         Write-Host "Check Update (because we don't trust anyone)"
         GetInstalledBuildID
         GetLatestBuildID
-        if ($latest_buildid -ne $false -and $installed_buildid -eq $latest_buildid) {
+        if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
             Write-Host "Update successfull. Starting server!!"
             start_wf
             }
@@ -231,7 +231,7 @@ if ( $installed_appid -ne 361580 ) {
 GetInstalledBuildID
 GetLatestBuildID
 Write-Host "Startup-checks complete. Proceeding to the lazy part"
-if ($latest_buildid -ne $false -and $installed_buildid -eq $latest_buildid) {
+if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
     $script:last_check = Get-Date
     start_wf
     }
