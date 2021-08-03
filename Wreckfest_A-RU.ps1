@@ -138,13 +138,14 @@ function GetLatestBuildID {
         Uri         = "https://api.steamcmd.net/v1/info/361580"
         Method      = 'GET'
         }
-
+    $req1 = $null
+    $req = $null
     $test = Test-Connection -ComputerName api.steamcmd.net -Count 1 -ErrorAction Ignore
 
-    if ($test.ResponseTime -ge 1 -or $test -ne $null ) {
+    if ($test.ResponseTime -ne $null) {
         $req1 = Invoke-WebRequest @params -UseBasicParsing
-        $req = $req1.Content | ConvertFrom-Json
         if ($req1.StatusCode -eq 200) {
+            $req = $req1.Content | ConvertFrom-Json
             $script:latest_buildid = $($req.data.361580).depots.branches.public.buildid
             }               
         else {
@@ -169,24 +170,29 @@ function GetInstalledAppID {
 function check_version () {
     GetInstalledBuildID
     GetLatestBuildID
-    if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
-        Write-Host "$(Get-Date) >> Server is Up2Date"
+    if ($latest_buildid -eq $null) {
+        Write-Warning "Wasn't able to fetch the latest buildid. funtion check_version stoppen."
         }
     else {
-        Write-Warning "$(Get-Date) >> Server is outdated. Starting Update!"
-        Sleep -Seconds 5
-        update_wf
-        Write-Host "Check Update (because we don't trust anyone)"
-        GetInstalledBuildID
-        GetLatestBuildID
-        if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
-            Write-Host "Update successfull. Starting server!!"
-            start_wf
+        if ($installed_buildid -eq $latest_buildid) {
+            Write-Host "$(Get-Date) >> Server is Up2Date"
             }
         else {
-            Write-Warning "Something went wrong during updating. Please update manually and restart the script"
-            Pause
-            Break
+            Write-Warning "$(Get-Date) >> Server is outdated. Starting Update!"
+            Sleep -Seconds 5
+            update_wf
+            Write-Host "Check Update (because we don't trust anyone)"
+            GetInstalledBuildID
+            GetLatestBuildID
+            if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
+                Write-Host "Update successfull. Starting server!!"
+                start_wf
+                }
+            else {
+                Write-Warning "Something went wrong during updating. Please update manually and restart the script"
+                Pause
+                Break
+                }
             }
         }
     $script:last_check = Get-Date
