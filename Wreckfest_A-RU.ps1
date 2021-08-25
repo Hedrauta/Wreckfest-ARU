@@ -12,7 +12,7 @@ $script:debug = $false # does write log-files into a subfolder, only for debuggi
 ########################################
 ## DON'T TRY TO CHANGE ANYTHING BELOW ##
 ########################################
-
+$host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: launching"
 function check_ddst ($1) {
     $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
     $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
@@ -211,6 +211,7 @@ if ($debug -eq $true) {
     }
 
 # Script-Start: 
+$host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: starting"
 "                     _                     _      "
 " \    / ._ _   _ | _|_ _   _ _|_    /\ __ |_) | | "
 "  \/\/  | (/_ (_ |< | (/_ _>  |_   /--\   | \ |_| "
@@ -221,6 +222,7 @@ if ($debug -eq $true) {
    "";"";""
    Write-Host "Thanks to github.com/ChiefIntegrator, for his wonderfull ConvertFrom-VDF and to the https://steamcmd.net API to get the auto-update-part running again"
 Sleep -Seconds 3
+$host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: checking dirs and game"
 if ( $(Get-ChildItem -Directory -Path $WF_DIR\config -ErrorAction Ignore).Count -eq 0) {
     Write-Warning "No Config-Directories found." 
     Write-Warning "Please create a config-folder and for every server a subfolder, which contains the server_config.cfg"
@@ -237,6 +239,7 @@ if ( $installed_appid -ne 361580 ) {
 GetInstalledBuildID
 GetLatestBuildID
 Write-Host "Startup-checks complete. Proceeding to the lazy part"
+$host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: running"
 if ($latest_buildid -ne $null -and $installed_buildid -eq $latest_buildid) {
     $script:last_check = Get-Date
     start_wf
