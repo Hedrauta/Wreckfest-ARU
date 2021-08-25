@@ -43,7 +43,7 @@ function start_wf () {
             sleep -Milliseconds 200
             $wf_conf = "$WF_DIR\config\$($_)\server_config.cfg"
             $Wf_save = "$WF_DIR\config\$($_)\save\"
-            Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -ArgumentList "-s server_config=$wf_conf","--save-dir=$wf_save"
+            Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -WindowStyle Minimized -ArgumentList "-s server_config=$wf_conf","--save-dir=$wf_save"
             }
         }
     Write-Warning "$($(Get-Process -Name Wreckfest_x64).Count) server started. Check for errors on your own."
