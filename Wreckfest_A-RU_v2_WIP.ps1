@@ -161,7 +161,6 @@ function start_wf { #NEW: Support for single instance
     else { # no argument > start all config_dirs
         $(Get-ChildItem -Path $WF_DIR\config\ -Directory).BaseName | foreach ($_) {
         start_process($_)
-        $script:last_start = (Get-Date).Date
         }
     }
 }
@@ -215,7 +214,8 @@ if ($debug -eq $true) {
 
 
 Start-Sleep -Milliseconds 300
-# Script-Start: 
+# Script-Start:
+$script:last_start = (Get-Date).Date
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: starting"
 "                     _                     _        "
 " \    / ._ _   _ | _|_ _   _ _|_    /\ __ |_)__ | | "
@@ -281,6 +281,7 @@ while (1) {
         ""
         stop_wf
         start_wf
+        $script:last_start = (Get-Date).Date
         ""
         }
     if ( (Get-Date) -ge $last_check.AddMinutes(5) ) {
