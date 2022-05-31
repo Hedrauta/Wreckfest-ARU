@@ -16,56 +16,6 @@ $script:debug = $false # does write log-files into a subfolder, only for debuggi
 
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: launching"
 # All kind of Function to use in the Loop
-function check_ddst ($1) {
-    $ddst=Get-ChildItem -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
-    $conf=Get-ChildItem -Path "$WF_DIR\config\$1\server_config.cfg" -ErrorAction Ignore
-    if ( "$ddst" -ne "$null" -and $($ddst.LastWriteTimeUtc) -lt $($conf.LastWriteTimeUtc) ) {
-        Remove-Item -Path "$WF_DIR\config\$1\save\dedicated.ddst" -ErrorAction Ignore
-        }
-    }
-function start_wf () {
-    if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -ge 1) {
-        Write-Warning "There are still some servers active. Trying to stop them"
-        stop_wf
-        }
-    $config_dir = $(Get-ChildItem -Directory -Path $WF_DIR\config).Name
-    $config_dir | ForEach-Object {
-        if ( $(Get-ChildItem -Directory -Path $WF_DIR\config\$_\ -ErrorAction Ignore).Count -eq 0) {
-            Write-Warning "No Save-Dir found, creating..."
-            New-Item -Path $WF_DIR\config\$_\ -Name "save" -ItemType "directory"
-            }
-        else { 
-            check_ddst $_
-            }
-        if ( $(Get-ChildItem -Path $WF_DIR\config\$($_)\ -Name server_config.cfg).Count -eq 0) {
-            Write-Warning "No server_config.cfg in $WF_DIR\config\$($_)\ found. Skipping Start."
-            Sleep -Seconds 1
-            }
-        else {
-            sleep -Milliseconds 200
-            $wf_conf = "$WF_DIR\config\$($_)\server_config.cfg"
-            $Wf_save = "$WF_DIR\config\$($_)\save\"
-            Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -WindowStyle Minimized -ArgumentList "-s server_config=$wf_conf","--save-dir=$wf_save"
-            }
-        }
-    Write-Warning "$($(Get-Process -Name Wreckfest_x64).Count) server started. Check for errors on your own."
-    $script:last_start = (Get-Date).Date
-    }
-function stop_wf () {
-    $wf_pid = $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Id
-    if ( $($wf_pid.Count) -gt 1 ) {
-        Write-Warning "Killing $($wf_pid.Count) server"
-        $wf_pid | ForEach-Object {
-            Stop-Process -Id $_ -ErrorAction Ignore
-            }
-        }
-    sleep -Milliseconds 300
-    if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -ge 1) {
-        Write-Warning "There are still some servers running. Please kill them manually"
-        Pause
-        Break
-        }
-    }
 Function ConvertFrom-VDF {
     # Source: https://github.com/ChiefIntegrator/Steam-GetOnTop/blob/master/Modules/SteamTools/SteamTools.psm1
     # To Use for the VDF-File as well as getting Infos about an update
@@ -123,15 +73,15 @@ function update_wf {
     stop_wf
     sleep -Seconds 3
     if ( $(Get-Process -Name Wreckfest_x64 -ErrorAction Ignore).Count -eq 0) {
-        .$STEAMCMD +login anonymous +force_install_dir $WF_DIR +app_update 361580 validate +quit
+        .$STEAMCMD +force_install_dir $WF_DIR +login anonymous +app_update 361580 validate +quit
         }
     else { 
         Write-Warning "There are still some servers active, please kill them manually and restart the script."
         Pause
         Break
         }
-    }
-function LatestAppInfo {
+    } 
+function LatestAppInfo { #NEW: Grab Build-Infos directly from Steam
     $script:fetch_app_info = .$STEAMCMD +force_install_dir $WF_DIR +app_info_print 361580 +quit
     $script:cut_app_info = $fetch_app_info[5..($fetch_app_info.Length-4)]
     $script:ConvertedAppInfo = ConvertFrom-VDF($cut_app_info)
@@ -166,6 +116,7 @@ function check_version {
             LatestAppInfo
             if (((GetLatestBuildID) -ne $null) -and ((GetInstalledBuildID) -eq (GetLatestBuildID))) {
                 Write-Host "Update successfull. Starting server!!"
+                Start-Sleep -Milliseconds 200
                 start_wf
                 }
         else {
@@ -178,16 +129,92 @@ function check_version {
     $script:last_check = Get-Date
     }
 }
-function restart_wf () {
-    stop_wf
-    sleep -Milliseconds 200
-    start_wf
+function start_wf { #NEW: Support for single instance
+    param(
+        [System.String]$local:WorkingDIR
+        )
+    
+    function start_process { # to prevent write it multiple times
+        param(
+        [System.String]$local:ConfigDIR
+        )
+        $local:Status = Get-Content $WF_DIR\config\$local:ConfigDIR\save\PID.json -Force -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if ($local:Status -ne $null) {
+            $running = $(Get-Process -Id $Status.PID -ErrorAction SilentlyContinue).HasExited
+            "Found and loaded JSON for $($local:ConfigDIR)"
+        }
+        if (($local:running -eq $true) -or ($local:running -eq $null)) {
+            Write-Warning "Server for $($local:ConfigDIR) not started. Starting..."
+            $local:started = Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -WindowStyle Minimized -PassThru -ArgumentList "-s server_config=$WF_DIR\config\$local:ConfigDIR\server_config.cfg","--save-dir=$WF_DIR\config\$local:ConfigDIR\save\"
+            $local:LastConfigChange = $(Get-Item -Path $WF_DIR\config\$local:ConfigDIR\server_config.cfg).LastWriteTimeUtc
+                Remove-Item $WF_DIR\config\$local:ConfigDIR\save\pid.json -Force -ErrorAction SilentlyContinue
+                @{  PID = [int]$($local:started.Id)
+                    LastConfigChange = [DateTime]$($local:LastConfigChange)} | ConvertTo-Json | Out-File $WF_DIR\config\$local:ConfigDIR\save\pid.json -Force
+                $(Get-Item -Path "$WF_DIR\config\$local:ConfigDIR\save\pid.json").Attributes = "Hidden"
+                Write-Warning "Started server for config-folder $($local:ConfigDIR)"
+            }
+        else { "Server for config at $($local:ConfigDIR) already running. Skipping..." }
+        }
+    if ($WorkingDIR -ne "") { # has an argument
+        start_process($local:WorkingDIR)
+        }
+    else { # no argument > start all config_dirs
+        $(Get-ChildItem -Path $WF_DIR\config\ -Directory).BaseName | foreach ($_) {
+        start_process($_)
+        $script:last_start = (Get-Date).Date
+        }
     }
+}
+function stop_wf { #NEW: Support for single instance
+    param(
+        [System.String]$local:WorkingDIR
+        )
+    function stop_process {
+        param(
+            [System.String]$local:ConfigDIR
+            )
+        $local:Status = Get-Content $WF_DIR\config\$local:ConfigDIR\save\PID.json -Force -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if ($local:Status -ne $null) {
+            $local:running = Get-Process -Id $Status.PID -ErrorAction SilentlyContinue
+            if ($local:running.HasExited -eq $false -and $local:running.Name -eq "Wreckfest_x64") {
+                Stop-Process -Id $Status.PID
+                "Instance for config $local:ConfigDIR stopped"
+                }
+            else {
+                "Instance already stopped or a different process claimed the PID. Skipping..."
+                }
+            }
+        }
+    if ($local:WorkingDIR -ne "") {
+        stop_process($local:WorkingDIR)
+        }
+    else { 
+        $(Get-ChildItem -Path $WF_DIR\config -Directory).BaseName | foreach ($_){
+            stop_process($_)
+            }
+        }
+}
+function Config_check { #NEW: will restart specific instance, if config changes
+    $(Get-ChildItem $WF_DIR\config -Directory).BaseName | Foreach ($_) {
+    $local:Status = Get-Content $WF_DIR\config\$_\save\PID.json -Force -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+    $local:config_file = Get-Item $WF_DIR\config\$_\server_config.cfg
+    if ($local:config_file.LastWriteTimeUtc.AddSeconds(-2) -gt $local:Status.LastConfigChange) {
+        "";"Config-Change for $_ detected. Restarting instance..."
+        stop_wf($_)
+        Remove-Item $WF_DIR\config\$_\save\dedicated.ddst -Force
+        start_wf($_)
+        ""
+        }
+    }
+}
+
 if ($debug -eq $true) {
     $script:scrstart = (Get-Date -UFormat %s -Millisecond 0)
     Start-Transcript -Path ".\WF_ARU\$($script:scrstart)_log.txt"
     }
 
+
+Start-Sleep -Milliseconds 300
 # Script-Start: 
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: starting"
 "                     _                     _        "
@@ -237,7 +264,6 @@ if ((GetInstalledAppID) -ne 361580 ) {
                 }
     } until ($rh_l -eq 'y' -or $rh_l -eq 'n')
 }
-LatestAppInfo
 Write-Host "Startup-checks complete. Proceeding to the lazy part"
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: running"
 if (((GetLatestBuildID) -ne $null) -and ((GetInstalledBuildID) -eq (GetLatestBuildID))) {
@@ -248,39 +274,26 @@ else {
     check_version
     }
 while (1) {
+    $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: Checking Changes"
     $script:start_time = $last_start.AddDays(1)
     if (((Get-Date) -ge $restart_time) -and ((Get-Date) -gt $start_time.Date)) {
         Write-Warning "$(Get-Date) >> Daily Restart!!!"
         ""
-        restart_wf
+        stop_wf
+        start_wf
         ""
         }
-    if ( (Get-Date) -ge $last_check.AddMinutes(15) ) {
+    if ( (Get-Date) -ge $last_check.AddMinutes(5) ) {
         ""
         check_version
         ""
         }
+    Config_check
     Write-Host -NoNewline "."
-    sleep -Seconds 10
+    $script:timer = 10
+    while ($script:timer -ne 0) {
+        $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: Idle for $timer seconds"
+        Start-Sleep -Seconds 1
+        $timer = $timer - 1
+        }
     }
-
-
-
-
-
-
-
-
-
-
-
-## Test-Corner
-    cls
-    # empty file: -ErrorAction Ignore -eq null
-    "Fetchin App Info"
-    $test = .$Script:STEAMCMD +force_install_dir $Server +app_info_print 361580 +quit
-    "Cut App Info"
-    $cut1 = $test[5..($test.Length-4)]
-    $convert = ConvertFrom-VDF($cut1)
-    #BuildID> $($convert.361580).depots.branches.public.buildid
-    #LastChangeDate> (Get-Date 01.01.1970).AddSeconds($($convert.361580).depots.branches.public.timeupdated)
