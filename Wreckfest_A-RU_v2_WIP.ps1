@@ -126,6 +126,7 @@ function check_version {
             Break
             }
         }
+    $script:last_check = Get-Date
     }
 }
 function start_wf { #NEW: Support for single instance
@@ -215,8 +216,6 @@ if ($debug -eq $true) {
 
 Start-Sleep -Milliseconds 300
 # Script-Start: 
-
-$script:last_check = Get-Date
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: starting"
 "                     _                     _        "
 " \    / ._ _   _ | _|_ _   _ _|_    /\ __ |_)__ | | "
@@ -282,7 +281,6 @@ while (1) {
         ""
         stop_wf
         start_wf
-        $script:last_check = Get-Date
         ""
         }
     if ( (Get-Date) -ge $last_check.AddMinutes(5) ) {
