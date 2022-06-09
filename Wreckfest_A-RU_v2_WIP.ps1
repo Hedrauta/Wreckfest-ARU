@@ -1,6 +1,6 @@
-﻿$Script:WF_DIR = "D:\testing\server" #Points to Wreckfest-Dedicated-Server-Directory
-$Script:STEAMCMD = "D:\testing\steamcmd\SteamCMD\steamcmd.exe" #Points to SteamCMD.exe
-$script:restart_time = Get-Date -Hour 8 -Minute 0 -Second 0
+﻿$WF_DIR = "C:\Spiele_Server\Wreckfest" #Points to Wreckfest-Dedicated-Server-Directory
+$STEAMCMD = "D:\steamcmd_gui\steamcmd\steamcmd.exe" #Points to SteamCMD.exe
+$restart_time = Get-Date -Hour 8 -Minute 0 -Second 0 # Daily Restart time
 
 ########################################
 ####### JUST EDIT THE LINES ABOVE ######
@@ -12,7 +12,7 @@ $script:restart_time = Get-Date -Hour 8 -Minute 0 -Second 0
 ########################################
 ####### YOU MAY BREAK THE SCRIPT #######
 ########################################
-$script:debug = $false # does write log-files into a subfolder, only for debugging-purposes
+$debug = $false # does write log-files into a subfolder, only for debugging-purposes
 
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: launching"
 # All kind of Function to use in the Loop
@@ -216,7 +216,6 @@ if ($debug -eq $true) {
 
 Start-Sleep -Milliseconds 300
 # Script-Start:
-$script:last_start = (Get-Date).Date
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: starting"
 "                     _                     _        "
 " \    / ._ _   _ | _|_ _   _ _|_    /\ __ |_)__ | | "
@@ -274,16 +273,24 @@ if (($null -ne (GetLatestBuildID)) -and ((GetInstalledBuildID) -eq (GetLatestBui
 else {
     check_version
 }
+if ($(Get-Date) -gt $restart_time) {
+    $restart_time = $restart_time.AddDays(1)
+    "______________________________________"
+    "Skipping a possible restart"
+    "Next Restart: $restart_time"
+    "______________________________________"
+    }
+
 while (1) {
     $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: Checking Changes"
-    $script:start_time = $last_start.AddDays(1)
-    if (((Get-Date) -ge $restart_time) -and ((Get-Date) -gt $start_time.Date)) {
+    if (((Get-Date) -ge $restart_time)) {
+        ""
         Write-Warning "$(Get-Date) >> Daily Restart!!!"
         ""
         stop_wf
         start_wf
-        $script:last_start = (Get-Date).Date
-        ""
+        $restart_time = $restart_time.AddDays(1)
+        "Next Restart: $restart_time"
     }
     if ( (Get-Date) -ge $last_check.AddMinutes(5) ) {
         ""
