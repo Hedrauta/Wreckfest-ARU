@@ -266,6 +266,7 @@ if ((GetInstalledAppID) -ne 361580 ) {
 }
 Write-Host "Startup-checks complete. Proceeding to the lazy part"
 $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: running"
+LatestAppInfo
 if (($null -ne (GetLatestBuildID)) -and ((GetInstalledBuildID) -eq (GetLatestBuildID))) {
     $script:last_check = Get-Date
     start_wf
