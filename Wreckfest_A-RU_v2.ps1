@@ -76,7 +76,7 @@ function update_wf {
 } 
 function LatestAppInfo {
     #NEW: Grab Build-Infos directly from Steam
-    $script:fetch_app_info = .$STEAMCMD +force_install_dir $WF_DIR +app_info_print 361580 +quit
+    $script:fetch_app_info = .$STEAMCMD +force_install_dir $WF_DIR +app_info_update 1 +app_info_print 361580 +quit
     $script:cut_app_info = $fetch_app_info[5..($fetch_app_info.Length - 4)]
     $script:ConvertedAppInfo = ConvertFrom-VDF($cut_app_info)
 }
