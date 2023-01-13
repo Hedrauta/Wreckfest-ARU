@@ -35,11 +35,13 @@ Function ConvertFrom-VDF {
         ForEach ($line in $InputObject) {
             $quotedElements = (Select-String -Pattern '(?<=")([^\"\t\s]+\s?)+(?=")' -InputObject $line -AllMatches).Matches
     
-            if ($quotedElements.Count -eq 1) { # Create a new (sub) object
+            if ($quotedElements.Count -eq 1) {
+                # Create a new (sub) object
                 $element = New-Object -TypeName PSObject
                 Add-Member -InputObject $parent -MemberType NoteProperty -Name $quotedElements[0].Value -Value $element
             }
-            elseif ($quotedElements.Count -eq 2) { # Create a new String hash
+            elseif ($quotedElements.Count -eq 2) {
+                # Create a new String hash
                 Add-Member -InputObject $element -MemberType NoteProperty -Name $quotedElements[0].Value -Value $quotedElements[1].Value
             }
             elseif ($line -match "{") {
@@ -54,7 +56,8 @@ Function ConvertFrom-VDF {
                 $element = $parent
                 $chain.Remove($depth)
             }
-            else { # Comments etc
+            else {
+                # Comments etc
             }
         }
 
@@ -124,8 +127,60 @@ function check_version {
         $script:last_check = Get-Date
     }
 }
+function remove_FwEntry {
+    param(
+        [System.String]$local:ConfigDIR
+    )
+    $local:fwEntry = Get-NetFirewallRule -Name "Wreckfest_$ConfigDIR" -ErrorAction SilentlyContinue
+    if ($null -ne $fwEntry) {
+        Remove-NetFirewallRule -Name "Wreckfest_$ConfigDIR"
+    }
+    else {
+        "Es existiert keine Firewall-Regel mit dem Namen Wreckfest_$ConfigDIR"
+    }
+}
+function add_FW_entry {
+    param(
+        [System.String]$local:WorkingDIR
+    )
+    $local:Port1 = $null
+    $local:Port2 = $null
+    $local:Port3 = $null
+    if ("" -eq $WorkingDir) {
+        "Something went wrong"
+    }
+    else {
+        $wfconfig = Get-Content $WF_DIR\config\$local:WorkingDIR\server_config.cfg
+        $wfconfig | ForEach-Object {
+            if ($_ -clike "#*") {}
+            else {
+                if ($_ -clike "steam_port=*") {
+                    $local:Port1 = $_.Split("=")[1]
+                }
+                if ($_ -clike "game_port=*") {
+                    $local:Port2 = $_.Split("=")[1]
+                }
+                if ($_ -clike "query_port=*") {
+                    $local:Port3 = $_.Split("=")[1]
+                }
+            }
+        }
+        New-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -Direction Inbound -Action Allow -Enabled True -Protocol UDP -LocalPort $local:Port1, $local:Port2, $local:Port3 -Profile Any -DisplayName "Wreckfest-Server $WorkingDIR (DONOTTOUCH)"
+        $local:fwEntry = Get-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -ErrorAction SilentlyContinue
+        if ($null -eq $fwEntry) {
+            "Firewall-Regel für $WorkingDIR wurde erstellt."
+            "Die Ports $local:Port1, $local:Port2 & $local:Port3 im Protokoltyp 'UDP' wurden freigegeben"
+            return $true
+        }
+        else {
+            "Etwas schlug fehl beim erstellen der Firewall-Regel:"
+            "Parameter: $WorkingDir, $Port1, $Port2, $Port3"
+            return $false
+        }
+    }
+}
+
 function start_wf {
-    #NEW: Support for single instance
     param(
         [System.String]$local:WorkingDIR
     )
@@ -142,6 +197,11 @@ function start_wf {
         }
         if (($local:running -eq $true) -or ($null -eq $local:running)) {
             Write-Warning "Server for $($local:ConfigDIR) not started. Starting..."
+            $fw_add = add_FW_entry($local:ConfigDir)
+            if ($false -eq $fw_add) {
+                "Something went wrong, skipping start for $($local:ConfigDIR)"
+                break
+            }
             $local:started = Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -WindowStyle Minimized -PassThru -ArgumentList "-s server_config=$WF_DIR\config\$local:ConfigDIR\server_config.cfg", "--save-dir=$WF_DIR\config\$local:ConfigDIR\save\"
             $local:LastConfigChange = $(Get-Item -Path $WF_DIR\config\$local:ConfigDIR\server_config.cfg).LastWriteTimeUtc
             Remove-Item $WF_DIR\config\$local:ConfigDIR\save\pid.json -Force -ErrorAction SilentlyContinue
@@ -183,6 +243,7 @@ function stop_wf {
             else {
                 "Instance already stopped or a different process claimed the PID. Skipping..."
             }
+            remove_FwEntry($local:ConfigDir)
         }
     }
     if ($local:WorkingDIR -ne "") {
@@ -281,7 +342,7 @@ if ($(Get-Date) -gt $restart_time) {
     "Skipping a possible restart"
     "Next Restart: $restart_time"
     "______________________________________"
-    }
+}
 
 while (1) {
     $host.UI.RawUI.WindowTitle = "Wreckfest Auto-Run&Update: Checking Changes"
