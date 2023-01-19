@@ -134,48 +134,47 @@ function remove_FwEntry {
     $local:fwEntry = Get-NetFirewallRule -Name "Wreckfest_$ConfigDIR" -ErrorAction SilentlyContinue
     if ($null -ne $fwEntry) {
         Remove-NetFirewallRule -Name "Wreckfest_$ConfigDIR"
+        return "Firewall Wreckfest_$ConfigDir removed"
     }
     else {
-        "Es existiert keine Firewall-Regel mit dem Namen Wreckfest_$ConfigDIR"
+        return "No existing Firewall with name: Wreckfest_$ConfigDIR"
     }
 }
 function add_FW_entry {
     param(
         [System.String]$local:WorkingDIR
     )
-    $local:Port1 = $null
-    $local:Port2 = $null
-    $local:Port3 = $null
-    if ("" -eq $WorkingDir) {
-        "Something went wrong"
+    $Port1 = ""
+    $Port2 = ""
+    $Port3 = ""
+    if ("" -eq $WorkingDir) { return "Something went wrong" }
+    $wfconfig = Get-Content $WF_DIR\config\$local:WorkingDIR\server_config.cfg
+    $wfconfig | ForEach-Object {
+        if ($_ -clike "#*") {}
+        elseif ($_ -clike "steam_port=*") { $Port1 = $_.Split("=")[1] }
+        elseif ($_ -clike "game_port=*") { $Port2 = $_.Split("=")[1] }
+        elseif ($_ -clike "query_port=*") { $Port3 = $_.Split("=")[1] }
     }
+    $local:grab = Get-NetFirewallRule -Name "Wreckfest_$WorkingDir" -ErrorAction SilentlyContinue
+    if ($null -eq $grab) { "No Firewall-Rule exististing. Creating new Firewall-Rule" }
     else {
-        $wfconfig = Get-Content $WF_DIR\config\$local:WorkingDIR\server_config.cfg
-        $wfconfig | ForEach-Object {
-            if ($_ -clike "#*") {}
-            else {
-                if ($_ -clike "steam_port=*") {
-                    $local:Port1 = $_.Split("=")[1]
-                }
-                if ($_ -clike "game_port=*") {
-                    $local:Port2 = $_.Split("=")[1]
-                }
-                if ($_ -clike "query_port=*") {
-                    $local:Port3 = $_.Split("=")[1]
-                }
-            }
+        $local:grab = Get-NetFirewallPortFilter | Where-Object { $_.InstanceID -eq "Wreckfest_$WorkingDir" }
+        if ([Array]::IndexOf($local:grab.LocalPort, $Port1) -ge 0 -and [Array]::IndexOf($local:grab.LocalPort, $Port2) -ge 0 -and [Array]::IndexOf($local:grab.LocalPort, $Port3)) {
+            return "There's already a correct firewall rule"
         }
-        New-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -Direction Inbound -Action Allow -Enabled True -Protocol UDP -LocalPort $local:Port1, $local:Port2, $local:Port3 -Profile Any -DisplayName "Wreckfest-Server $WorkingDIR (DONOTTOUCH)"
-        $local:fwEntry = Get-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -ErrorAction SilentlyContinue
+        else {
+            "Firewall alters with the ports given. Deleting existing Firewall and creating a correct one."
+            remove_FwEntry($WorkingDIR)
+        }
+        New-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -Direction Inbound -Action Allow -Enabled True -Protocol UDP -LocalPort $Port1, $Port2, $Port3 -Profile Any -DisplayName "Wreckfest-Server $WorkingDIR (DO NOT TOUCH)"
+        $grab = Get-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -ErrorAction SilentlyContinue
         if ($null -eq $fwEntry) {
             "Firewall-Regel für $WorkingDIR wurde erstellt."
-            "Die Ports $local:Port1, $local:Port2 & $local:Port3 im Protokoltyp 'UDP' wurden freigegeben"
-            return $true
+            "Die Ports $Port1, $Port2 & $Port3 im Protokoltyp 'UDP' wurden freigegeben"
         }
         else {
             "Etwas schlug fehl beim erstellen der Firewall-Regel:"
             "Parameter: $WorkingDir, $Port1, $Port2, $Port3"
-            return $false
         }
     }
 }
@@ -195,13 +194,9 @@ function start_wf {
             $running = $(Get-Process -Id $Status.PID -ErrorAction SilentlyContinue).HasExited
             "Found and loaded JSON for $($local:ConfigDIR)"
         }
-        if (($local:running -eq $true) -or ($null -eq $local:running)) {
+        if ((($local:running -eq $true) -or ($null -eq $local:running)) -and $running.ProcessName -ne "Wreckfest_x64" ) {
             Write-Warning "Server for $($local:ConfigDIR) not started. Starting..."
-            $fw_add = add_FW_entry($local:ConfigDir)
-            if ($false -eq $fw_add) {
-                "Something went wrong, skipping start for $($local:ConfigDIR)"
-                break
-            }
+            add_FW_entry($local:ConfigDir)
             $local:started = Start-Process -FilePath $WF_DIR\Wreckfest_x64.exe -WorkingDirectory $WF_DIR -WindowStyle Minimized -PassThru -ArgumentList "-s server_config=$WF_DIR\config\$local:ConfigDIR\server_config.cfg", "--save-dir=$WF_DIR\config\$local:ConfigDIR\save\"
             $local:LastConfigChange = $(Get-Item -Path $WF_DIR\config\$local:ConfigDIR\server_config.cfg).LastWriteTimeUtc
             Remove-Item $WF_DIR\config\$local:ConfigDIR\save\pid.json -Force -ErrorAction SilentlyContinue
