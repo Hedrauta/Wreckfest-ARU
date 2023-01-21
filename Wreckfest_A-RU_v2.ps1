@@ -166,16 +166,16 @@ function add_FW_entry {
             "Firewall alters with the ports given. Deleting existing Firewall and creating a correct one."
             remove_FwEntry($WorkingDIR)
         }
-        New-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -Direction Inbound -Action Allow -Enabled True -Protocol UDP -LocalPort $Port1, $Port2, $Port3 -Profile Any -DisplayName "Wreckfest-Server $WorkingDIR (DO NOT TOUCH)"
-        $grab = Get-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -ErrorAction SilentlyContinue
-        if ($null -eq $fwEntry) {
-            "Firewall-Regel für $WorkingDIR wurde erstellt."
-            "Die Ports $Port1, $Port2 & $Port3 im Protokoltyp 'UDP' wurden freigegeben"
-        }
-        else {
-            "Etwas schlug fehl beim erstellen der Firewall-Regel:"
-            "Parameter: $WorkingDir, $Port1, $Port2, $Port3"
-        }
+    }
+    New-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -Direction Inbound -Action Allow -Enabled True -Protocol UDP -LocalPort $Port1, $Port2, $Port3 -Profile Any -DisplayName "Wreckfest-Server $WorkingDIR (DO NOT TOUCH)" | Out-Null
+    $grab = Get-NetFirewallRule -Name "Wreckfest_$WorkingDIR" -ErrorAction SilentlyContinue
+    if ($null -eq $fwEntry) {
+        "Firewall-Regel für $WorkingDIR wurde erstellt."
+        "Die Ports $Port1, $Port2 & $Port3 im Protokoltyp 'UDP' wurden freigegeben"
+    }
+    else {
+        "Etwas schlug fehl beim erstellen der Firewall-Regel:"
+        "Parameter: $WorkingDir, $Port1, $Port2, $Port3"
     }
 }
 
